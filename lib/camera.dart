@@ -5,8 +5,9 @@ import 'dart:math' as math;
 
 const String ssd = "SSD MobileNet";
 const String yolo = "Tiny YOLOv2";
+const String monumenti = "Monumenti Cagliari";
 
-typedef void Callback(List<dynamic> list, int h, int w);
+typedef void Callback(List<dynamic> list, int h, int w, cameraController);
 
 class Camera extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -19,9 +20,16 @@ class Camera extends StatefulWidget {
   _CameraState createState() => new _CameraState();
 }
 
+class RecognitionResult {
+  double confidence;
+  int index;
+  String label;
+}
+
 class _CameraState extends State<Camera> {
   CameraController controller;
   bool isDetecting = false;
+  List<RecognitionResult> results = [];
 
   @override
   void initState() {
@@ -46,27 +54,57 @@ class _CameraState extends State<Camera> {
 
             int startTime = new DateTime.now().millisecondsSinceEpoch;
 
-            Tflite.detectObjectOnFrame(
-              bytesList: img.planes.map((plane) {
-                return plane.bytes;
-              }).toList(),
-              model: widget.model == yolo ? "YOLO" : "SSDMobileNet",
-              imageHeight: img.height,
-              imageWidth: img.width,
-              imageMean: widget.model == yolo ? 0 : 127.5,
-              imageStd: widget.model == yolo ? 255.0 : 127.5,
-              numResultsPerClass: 1,
-              threshold: widget.model == yolo ? 0.2 : 0.4,
-            ).then((recognitions) {
-              // print(recognitions);
+            if (widget.model == monumenti) {
+              print(monumenti);
+              var recognitions = Tflite.runModelOnFrame(
+                      bytesList: img.planes.map((plane) {
+                        return plane.bytes;
+                      }).toList(),
+                      // required
+                      imageHeight: img.height,
+                      imageWidth: img.width,
+                      imageMean: 127.5,
+                      // defaults to 127.5
+                      imageStd: 127.5,
+                      // defaults to 127.5
+                      rotation: 90,
+                      // defaults to 90, Android only
+                      numResults: 6,
+                      // defaults to 5
+                      threshold: 0.1,
+                      // defaults to 0.1
+                      asynch: true // defaults to true
+                      )
+                  .then((List recognitions) {
+                int endTime = new DateTime.now().millisecondsSinceEpoch;
+                print("Detection took ${endTime - startTime}");
+                print("Recognitions: $recognitions");
+                widget.setRecognitions(recognitions, img.height, img.width, controller);
+                isDetecting = false;
+              });
+            } else {
+              Tflite.detectObjectOnFrame(
+                bytesList: img.planes.map((plane) {
+                  return plane.bytes;
+                }).toList(),
+                model: widget.model == yolo ? "YOLO" : "SSDMobileNet",
+                imageHeight: img.height,
+                imageWidth: img.width,
+                imageMean: widget.model == yolo ? 0 : 127.5,
+                imageStd: widget.model == yolo ? 255.0 : 127.5,
+                numResultsPerClass: 1,
+                threshold: widget.model == yolo ? 0.2 : 0.4,
+              ).then((recognitions) {
+                // print(recognitions);
 
-              int endTime = new DateTime.now().millisecondsSinceEpoch;
-              print("Detection took ${endTime - startTime}");
+                int endTime = new DateTime.now().millisecondsSinceEpoch;
+                print("Detection took ${endTime - startTime}");
 
-              widget.setRecognitions(recognitions, img.height, img.width);
+                widget.setRecognitions(recognitions, img.height, img.width, controller);
 
-              isDetecting = false;
-            });
+                isDetecting = false;
+              });
+            }
           }
         });
       });

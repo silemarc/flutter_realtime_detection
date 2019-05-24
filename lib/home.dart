@@ -8,6 +8,7 @@ import 'bndbox.dart';
 
 const String ssd = "SSD MobileNet";
 const String yolo = "Tiny YOLOv2";
+const String monumenti = "Monumenti Cagliari";
 
 class HomePage extends StatefulWidget {
   final List<CameraDescription> cameras;
@@ -22,6 +23,7 @@ class _HomePageState extends State<HomePage> {
   List<dynamic> _recognitions;
   int _imageHeight = 0;
   int _imageWidth = 0;
+  CameraController _cameraController;
   String _model = "";
 
   @override
@@ -29,9 +31,23 @@ class _HomePageState extends State<HomePage> {
     super.initState();
   }
 
+  closeModel() {
+
+    _cameraController?.dispose();
+    setState(() {
+      _model == '';
+    });
+  }
+
   loadModel() async {
     String res;
     switch (_model) {
+      case monumenti:
+        res = await Tflite.loadModel(
+          model: "assets/monumenti.tflite",
+          labels: "assets/monumenti.txt",
+        );
+        break;
       case yolo:
         res = await Tflite.loadModel(
           model: "assets/yolov2_tiny.tflite",
@@ -54,11 +70,12 @@ class _HomePageState extends State<HomePage> {
     loadModel();
   }
 
-  setRecognitions(recognitions, imageHeight, imageWidth) {
+  setRecognitions(recognitions, imageHeight, imageWidth, cameraController) {
     setState(() {
       _recognitions = recognitions;
       _imageHeight = imageHeight;
       _imageWidth = imageWidth;
+      _cameraController = cameraController;
     });
   }
 
@@ -66,6 +83,17 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     Size screen = MediaQuery.of(context).size;
     return Scaffold(
+      appBar: AppBar(
+        title: Text(_model != null ? _model : ''),
+        actions: <Widget>[
+          FlatButton(
+              child: Text('Chiudi'),
+              onPressed: () {
+                closeModel();
+
+              }),
+        ],
+      ),
       body: _model == ""
           ? Center(
               child: Column(
@@ -79,6 +107,10 @@ class _HomePageState extends State<HomePage> {
                     child: const Text(yolo),
                     onPressed: () => onSelect(yolo),
                   ),
+                  RaisedButton(
+                    child: const Text(monumenti),
+                    onPressed: () => onSelect(monumenti),
+                  ),
                 ],
               ),
             )
@@ -89,15 +121,36 @@ class _HomePageState extends State<HomePage> {
                   _model,
                   setRecognitions,
                 ),
-                BndBox(
-                  _recognitions == null ? [] : _recognitions,
-                  math.max(_imageHeight, _imageWidth),
-                  math.min(_imageHeight, _imageWidth),
-                  screen.height,
-                  screen.width,
-                ),
+                buildResults(screen),
               ],
             ),
     );
+  }
+
+  Widget buildResults(Size screen) {
+    return _model == monumenti
+        ? Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              child: Text(
+                _recognitions != null && _recognitions.isNotEmpty
+                    ? _recognitions.first['label']
+                    : 'analisi in corso...',
+                textAlign: TextAlign.center,
+              ),
+              height: 30,
+              width: 200,
+              color: Colors.blueAccent,
+            ),
+          )
+        : BndBox(
+            _recognitions == null ? [] : _recognitions,
+            math.max(_imageHeight, _imageWidth),
+            math.min(_imageHeight, _imageWidth),
+            screen.height,
+            screen.width,
+          );
   }
 }
